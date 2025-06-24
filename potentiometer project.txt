@@ -1,0 +1,20 @@
+// Experiment 3: Reading a Potentiometer using ESP32
+
+// Define the analog pin
+const int potPin = 27; // GPIO27 is ADC-capable
+
+void setup() {
+  // Start serial monitor at 115200 baud rate
+  Serial.begin(115200);
+}
+
+void loop() {
+  // Read analog value (0–4095)
+  int potValue = analogRead(potPin);
+
+  // Print the value to the serial monitor
+  Serial.print("Potentiometer Value: ");
+  Serial.println(potValue); 
+
+  delay(200); // Delay for readability
+}
