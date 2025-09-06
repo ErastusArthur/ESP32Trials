@@ -1,0 +1,35 @@
+const int chargePin = 5;   // GPIO pin to control charging
+const int adcPin = 34;     // ADC input pin to read capacitor voltage
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(chargePin, OUTPUT);
+  digitalWrite(chargePin, LOW); // start with capacitor discharged
+}
+
+void loop() {
+  // Step 1: Charge capacitor
+  Serial.println("Charging capacitor...");
+  digitalWrite(chargePin, HIGH);  // apply 3.3V
+  delay(1000);  // let it charge for 1 sec
+  
+  // Step 2: Read voltage
+  int raw = analogRead(adcPin);
+  float voltage = (3.3 / 4095.0) * raw; // scale for ESP32 12-bit ADC
+  Serial.print("Capacitor Voltage after charging: ");
+  Serial.println(voltage);
+
+  // Step 3: Discharge capacitor
+  Serial.println("Discharging capacitor...");
+  digitalWrite(chargePin, LOW);  // pull to GND
+  delay(1000);  // let it discharge for 1 sec
+
+  // Step 4: Read voltage again
+  raw = analogRead(adcPin);
+  voltage = (3.3 / 4095.0) * raw;
+  Serial.print("Capacitor Voltage after discharging: ");
+  Serial.println(voltage);
+
+  Serial.println("Wait");
+  delay(2000);  // wait before next cycle
+}
