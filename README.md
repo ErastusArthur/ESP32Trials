@@ -1,0 +1,1 @@
+This repository documents my journey into embedded systems as I learn to work with microcontrollers such as the ESP32. Every project, from simple experiments to progressively complex implementations, will be recorded here as part of my hands-on exploration and growth in this field.
