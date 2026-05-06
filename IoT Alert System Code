@@ -1,0 +1,145 @@
+#define BLYNK_TEMPLATE_ID "xxx"     
+#define BLYNK_TEMPLATE_NAME "IOT-BASED SECURITY ALERT SYSTEM"  
+#define BLYNK_AUTH_TOKEN "xxx"    
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+// --- NETWORK CREDENTIALS ---
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "YOUR_WIFI_NAME";        
+char pass[] = "YOUR_WIFI_PASSWORD";    
+
+// --- PIN DEFINITIONS ---
+#define PIN_BUTTON    4    // Panic Button (Active Low)
+#define PIN_PIR       14   // HC-SR501 Motion Sensor
+#define PIN_BUZZER    13   // Active Buzzer
+#define PIN_LED_RED   25   // RGB Red Pin
+#define PIN_LED_GREEN 26   // RGB Green Pin
+#define PIN_LED_BLUE  27   // RGB Blue Pin
+
+// --- SYSTEM VARIABLES ---
+bool isArmed = false;         
+bool alertActive = false;      
+int buttonState;
+int lastButtonState = HIGH;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;
+
+BlynkTimer timer; // Timer object for multitasking
+
+// --- SETUP FUNCTION ---
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize Hardware Pins
+  pinMode(PIN_BUTTON, INPUT_PULLUP); // Button uses internal resistor
+  pinMode(PIN_PIR, INPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
+  pinMode(PIN_LED_RED, OUTPUT);
+  pinMode(PIN_LED_GREEN, OUTPUT);
+  pinMode(PIN_LED_BLUE, OUTPUT);
+
+  // Initial LED State (White for Connecting)
+  setColor(1, 1, 1); 
+
+  // Connect to Blynk
+  Blynk.begin(auth, ssid, pass);
+
+  // Setup a timer to check sensors every 100ms (Non-blocking)
+  timer.setInterval(100L, checkSensors);
+  
+  // Set initial state
+  updateSystemState();
+}
+
+// --- MAIN LOOP ---
+void loop() {
+  Blynk.run();   // Handle Cloud Communication
+  timer.run();   // Handle Sensor Timers
+}
+
+// --- SENSOR LOGIC LOOP ---
+void checkSensors() {
+  // 1. CHECK PANIC BUTTON (Active in ANY mode)
+  int reading = digitalRead(PIN_BUTTON);
+  
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != buttonState) {
+      buttonState = reading;
+      if (buttonState == LOW) { // Button Pressed
+        triggerAlert("PANIC BUTTON PRESSED!");
+      }
+    }
+  }
+  lastButtonState = reading;
+
+  // 2. CHECK PIR SENSOR (Only if ARMED)
+  if (isArmed && !alertActive) {
+    if (digitalRead(PIN_PIR) == HIGH) {
+      triggerAlert("MOTION DETECTED (INTRUDER)!");
+    }
+  }
+}
+
+// --- ALERT FUNCTION ---
+void triggerAlert(String cause) {
+  if (!alertActive) { // Prevent spamming
+    Serial.println("ALERT TRIGGERED: " + cause);
+    alertActive = true;
+    
+    // 1. Local Alarm
+    digitalWrite(PIN_BUZZER, HIGH);
+    setColor(1, 0, 0); // Turn LED Red
+    
+    // 2. Cloud Notification
+    Blynk.logEvent("security_alert", cause); // Sends Push Notification
+    
+    // 3. Reset Alarm automatically after 5 seconds (optional)
+    // timer.setTimeout(5000L, resetSystem); 
+  }
+}
+
+// --- BLYNK APP CONTROL (Virtual Pin V1) ---
+// This function runs when you press the Button in the App
+BLYNK_WRITE(V1) {
+  int pinValue = param.asInt(); // Get value from App (0 or 1)
+  
+  if (pinValue == 1) {
+    isArmed = true;
+    Serial.println("System ARMED via App");
+  } else {
+    isArmed = false;
+    resetSystem(); // Turn off alarm if it was ringing
+    Serial.println("System DISARMED via App");
+  }
+  updateSystemState();
+}
+
+// --- HELPER FUNCTIONS ---
+void resetSystem() {
+  alertActive = false;
+  digitalWrite(PIN_BUZZER, LOW);
+  updateSystemState();
+}
+
+void updateSystemState() {
+  if (alertActive) {
+    setColor(1, 0, 0); // Red (Danger)
+  } else if (isArmed) {
+    setColor(0, 0, 1); // Blue (Armed/Away)
+  } else {
+    setColor(0, 1, 0); // Green (Disarmed/Safe)
+  }
+}
+
+// Function to set RGB LED Color (1 = ON, 0 = OFF)
+void setColor(bool r, bool g, bool b) {
+  digitalWrite(PIN_LED_RED, r);
+  digitalWrite(PIN_LED_GREEN, g);
+  digitalWrite(PIN_LED_BLUE, b);
+}
